@@ -293,9 +293,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
      assert(num_ghosts==total_recv_count);
 
      scalar_field_type ghosted_conserved_vars("ghosted_conserved_vars", total_recv_count*5);
-     typename scalar_field_type::HostMirror ghosted_conserved_vars_host = Kokkos::create_mirror(ghosted_conserved_vars);
      scalar_field_type shared_conserved_vars("shared_conserved_vars", total_send_count*5);
-     typename scalar_field_type::HostMirror shared_conserved_vars_host = Kokkos::create_mirror(shared_conserved_vars);
 
      id_map_type send_local_ids = mesh_data_.send_local_ids;
      id_map_type recv_local_ids = mesh_data_.recv_local_ids;
@@ -363,15 +361,13 @@ void TimeSolverExplicitRK4<Device>::Solve()
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
           Device::fence();
-          Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
 
-          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.ptr_on_device(),ghosted_conserved_vars_host.ptr_on_device(), 5);
+          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 
           //copy values to be sent from host to device
-          Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
-          Device::fence();
+          //Device::fence();
         #endif
 
         //Zero fluxes

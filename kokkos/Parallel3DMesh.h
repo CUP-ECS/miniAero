@@ -428,17 +428,12 @@ public:
       total_recv_count += mesh_data.recvCount[i];
 
     Kokkos::View<double*,Device> shared_volumes("SharedVolumes",total_send_count);
-    typename Kokkos::View<double*,Device>::HostMirror host_shared_volumes = Kokkos::create_mirror_view(shared_volumes);
     Kokkos::parallel_for(total_send_count, extract_shared_vector_1d<Device>(
         device_cells.volumes_,mesh_data.send_local_ids,shared_volumes));
 
-    Kokkos::deep_copy(host_shared_volumes,shared_volumes);
     Kokkos::View<double*,Device> ghost_volumes("GhostVolumes",total_recv_count);
-    typename Kokkos::View<double*,Device>::HostMirror host_ghost_volumes = Kokkos::create_mirror_view(ghost_volumes);
 
-    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, host_shared_volumes.ptr_on_device(),host_ghost_volumes.ptr_on_device(), 1);
-
-    Kokkos::deep_copy(ghost_volumes,host_ghost_volumes);
+    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, shared_volumes.data(),ghost_volumes.data(), 1);
 
     Kokkos::parallel_for(total_recv_count, insert_ghost_vector_1d<Device>(
         device_cells.volumes_,mesh_data.recv_local_ids,ghost_volumes));

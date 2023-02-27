@@ -46,10 +46,9 @@ void communicate_ghosted_cell_data(std::vector<int> & sendCount, std::vector<int
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
   // communicate values to other processors
-  MPI_Request * send_requests = new MPI_Request[num_procs-1];
-  MPI_Request * recv_requests = new MPI_Request[num_procs-1];
-  MPI_Status * statuses = new MPI_Status[num_procs-1];
-  int send_comm_count=0, recv_comm_count=0;
+  MPI_Request * requests = new MPI_Request[2*(num_procs-1)];
+  MPI_Status * statuses = new MPI_Status[2*(num_procs-1)];
+  int comm_count=0;
   int tag=35;
   int send_offset=0;
   int recv_offset=0;
@@ -57,22 +56,20 @@ void communicate_ghosted_cell_data(std::vector<int> & sendCount, std::vector<int
     if(i==my_id) continue;
     if(sendCount[i]!=0){
       int data_length = sendCount[i]*data_per_cell;
-      MPI_Isend(&send_data[send_offset], data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &send_requests[send_comm_count]);
+      MPI_Isend(&send_data[send_offset], data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
       send_offset+=data_length;
-      send_comm_count++;
+      comm_count++;
     }
     if(recvCount[i]!=0){
       int data_length = recvCount[i]*data_per_cell;
-      MPI_Irecv(&recv_data[recv_offset], data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &recv_requests[recv_comm_count]);
+      MPI_Irecv(&recv_data[recv_offset], data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
       recv_offset+=data_length;
-      recv_comm_count++;
+      comm_count++;
     }
   }
-  MPI_Waitall(send_comm_count, send_requests, statuses);
-  MPI_Waitall(recv_comm_count, recv_requests, statuses);
+  MPI_Waitall(comm_count, requests, statuses);
 
-  delete [] send_requests;
-  delete [] recv_requests;
+  delete [] requests;
   delete [] statuses;
 
 #endif

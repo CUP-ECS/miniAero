@@ -206,7 +206,7 @@ TimeSolverExplicitRK4<Device>::~TimeSolverExplicitRK4()
 template <typename Device>
 void TimeSolverExplicitRK4<Device>::Solve()
 {
-  Kokkos::Impl::Timer timer;
+  Kokkos::Timer timer;
   //Kokkos Arrays
   typedef typename ViewTypes<Device>::scalar_field_type scalar_field_type;
   typedef typename ViewTypes<Device>::solution_field_type solution_field_type;

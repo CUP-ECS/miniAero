@@ -519,7 +519,6 @@ class StencilLimiter{
       cells_(cells),
       mesh_data_(mesh_data),
       ghosted_vars("ghosted_vars", total_recv_count*5),
-      ghosted_vars_host(Kokkos::create_mirror(ghosted_vars)),
       shared_vars("shared_vars", total_send_count*5),
       stored_min_("stored_min", cells->ncells_*5, cells->nfaces_),
       stored_max_("stored_max", cells->ncells_*5, cells->nfaces_),
@@ -550,11 +549,11 @@ class StencilLimiter{
       Kokkos::parallel_for(nboundary_faces, bc_min_max);
     }
       
-    Device::fence();
+    Kokkos::fence();
   
     gather_min_max<Device> gather(*cells_, stored_min_, stored_max_, stencil_min_, stencil_max_);
     Kokkos::parallel_for(mesh_data_->num_owned_cells, gather);
-    Device::fence();
+    Kokkos::fence();
   }
 
   void communicate_min_max(){
@@ -562,7 +561,7 @@ class StencilLimiter{
   // For min
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
-      Device::fence();
+      Kokkos::fence();
   
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
   
@@ -573,13 +572,13 @@ class StencilLimiter{
   // For max
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
-      Device::fence();
+      Kokkos::fence();
   
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
   
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
-      Device::fence();
+      Kokkos::fence();
   // TODO: Maybe combined or overlapped in future.
   }
 
@@ -603,24 +602,24 @@ class StencilLimiter{
       limiter_face<Device, false> limiter_bc(*faces, sol_np1_vec, *cells_, gradients, stencil_min_, stencil_max_, stored_limiter_);
       Kokkos::parallel_for(nboundary_faces, limiter_bc);
     }
-    Device::fence();
+    Kokkos::fence();
   
     gather_limiter<Device> gather(cells_->nfaces_, stored_limiter_, limiter);
     Kokkos::parallel_for(mesh_data_->num_owned_cells, gather);
-    Device::fence();
+    Kokkos::fence();
   }
 
   void communicate_limiter(solution_field_type limiter) {
 
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
-      Device::fence();
+      Kokkos::fence();
   
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
   
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
-      Device::fence();
+      Kokkos::fence();
   }
 
   private:

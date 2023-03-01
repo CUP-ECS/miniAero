@@ -1,5 +1,5 @@
-KOKKOS_PATH = ${HOME}/kokkos
-KOKKOS_DEVICES=OpenMP
+KOKKOS_PATH = ${HOME}/workspace/kokkos
+KOKKOS_DEVICES=threads
 
 default: build
 	echo "Start Build"

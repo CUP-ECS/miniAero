@@ -519,7 +519,9 @@ class StencilLimiter{
       cells_(cells),
       mesh_data_(mesh_data),
       ghosted_vars("ghosted_vars", total_recv_count*5),
+      ghosted_vars_host(Kokkos::create_mirror(ghosted_vars)),
       shared_vars("shared_vars", total_send_count*5),
+      shared_vars_host(Kokkos::create_mirror(shared_vars)),
       stored_min_("stored_min", cells->ncells_*5, cells->nfaces_),
       stored_max_("stored_max", cells->ncells_*5, cells->nfaces_),
       stored_limiter_("stored_limiter", cells->ncells_*5, cells->nfaces_),
@@ -562,20 +564,24 @@ class StencilLimiter{
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
       Kokkos::fence();
+      Kokkos::deep_copy(shared_vars_host, shared_vars);
   
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
   
+      Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
-      //Device::fence();
+      Kokkos::fence();
 
   // For max
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
       Kokkos::fence();
+      Kokkos::deep_copy(shared_vars_host, shared_vars);
   
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
   
+      Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
       Kokkos::fence();
@@ -614,9 +620,11 @@ class StencilLimiter{
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
       Kokkos::fence();
+      Kokkos::deep_copy(shared_vars_host, shared_vars);
   
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(), ghosted_vars_host.data(), 5);
   
+      Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
       Kokkos::fence();
@@ -628,7 +636,9 @@ class StencilLimiter{
     Cells<Device> * cells_;
     struct MeshData<Device> * mesh_data_;
     scalar_field_type ghosted_vars;
+    typename scalar_field_type::HostMirror ghosted_vars_host;
     scalar_field_type shared_vars;
+    typename scalar_field_type::HostMirror shared_vars_host;
     cell_storage_field_type stored_min_;
     cell_storage_field_type stored_max_;
     cell_storage_field_type stored_limiter_;

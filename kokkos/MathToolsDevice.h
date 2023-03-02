@@ -71,24 +71,24 @@ public:
 
    KOKKOS_INLINE_FUNCTION static double min(double val1, double val2)
    {
-     return std::min(val1, val2);
+     return Kokkos::Experimental::fmin(val1, val2);
    }
    KOKKOS_INLINE_FUNCTION static double max(double val1, double val2)
    {
-     return std::max(val1, val2);
+     return Kokkos::Experimental::fmax(val1, val2);
    }
 };
 #ifdef KOKKOS_HAVE_CUDA
 template <>
 KOKKOS_INLINE_FUNCTION double MathTools<Kokkos::Cuda>::min(double val1, double val2)
   {
-    return Kokkos::experimental::fmin(val1, val2);
+    return Kokkos::Experimental::fmin(val1, val2);
   } 
 
 template <>
 KOKKOS_INLINE_FUNCTION double MathTools<Kokkos::Cuda>::max(double val1, double val2)
   {
-    return Kokkos::experimental::fmax(val1, val2);
+    return Kokkos::Experimental::fmax(val1, val2);
   } 
 #endif
 

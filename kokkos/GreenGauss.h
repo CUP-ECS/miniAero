@@ -291,7 +291,9 @@ class GreenGauss {
       cells_(cells),
       mesh_data_(mesh_data),
       ghosted_gradient_vars("ghosted_gradient_vars", total_recv_count*5*3),
-      shared_gradient_vars("shared_gradient_vars", total_send_count*5*3)
+      ghosted_gradient_vars_host(Kokkos::create_mirror(ghosted_gradient_vars)),
+      shared_gradient_vars("shared_gradient_vars", total_send_count*5*3),
+      shared_gradient_vars_host(Kokkos::create_mirror(shared_gradient_vars))
         {}
 
     //computes the gradient on locally owned cells.
@@ -324,10 +326,12 @@ class GreenGauss {
       extract_shared_tensor<Device, 5, 3> extract_shared_gradients(gradients, mesh_data_->send_local_ids, shared_gradient_vars);//sol_np1_vec, send_local_ids, shared_cells);
       Kokkos::parallel_for(mesh_data_->num_ghosts,extract_shared_gradients);
       Kokkos::fence();
+      Kokkos::deep_copy(shared_gradient_vars_host, shared_gradient_vars);
   
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15);
   
       //copy values to be sent from host to device
+      Kokkos::deep_copy(ghosted_gradient_vars, ghosted_gradient_vars_host);
       insert_ghost_tensor<Device, 5, 3> insert_ghost_gradients(gradients, mesh_data_->recv_local_ids, ghosted_gradient_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_gradients);
       Kokkos::fence();
@@ -339,5 +343,7 @@ class GreenGauss {
     Cells<Device> * cells_;
     struct MeshData<Device> * mesh_data_;
     scalar_field_type ghosted_gradient_vars;
+    typename scalar_field_type::HostMirror ghosted_gradient_vars_host;
     scalar_field_type shared_gradient_vars;
+    typename scalar_field_type::HostMirror shared_gradient_vars_host;
 };

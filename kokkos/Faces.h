@@ -133,7 +133,7 @@ void copy_faces(Faces<Device> device_faces, std::vector<Face> & mesh_faces){
     typedef Kokkos::MinMax<int,Device> reducer_type;
     typedef typename reducer_type::value_type minmax_type;
     minmax_type minmax;
-    Kokkos::parallel_reduce(face_cell_left.extent(0), KOKKOS_LAMBDA (const int& i, minmax_type& lminmax) {
+    Kokkos::parallel_reduce(face_cell_left.extent(0), KOKKOS_LAMBDA (const int i, minmax_type& lminmax) {
       if(face_cell_left(i)<lminmax.min_val) lminmax.min_val = face_cell_left(i);
       if(face_cell_left(i)>lminmax.max_val) lminmax.max_val = face_cell_left(i);
     },reducer_type(minmax));

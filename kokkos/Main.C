@@ -74,9 +74,6 @@ int main(int argc, char *argv[])
   simulation_options.read_options_file();
 
   Kokkos::initialize(argc,argv);
-  if (my_id == 0) {
-    Kokkos::print_configuration(std::cout);
-  }
 
   run(simulation_options);
 

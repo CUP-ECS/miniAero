@@ -293,9 +293,11 @@ void TimeSolverExplicitRK4<Device>::Solve()
      assert(num_ghosts==total_recv_count);
 
      scalar_field_type ghosted_conserved_vars("ghosted_conserved_vars", total_recv_count*5);
-     typename scalar_field_type::HostMirror ghosted_conserved_vars_host = Kokkos::create_mirror(ghosted_conserved_vars);
      scalar_field_type shared_conserved_vars("shared_conserved_vars", total_send_count*5);
+#ifndef WITH_GPUAWARE_MPI
+     typename scalar_field_type::HostMirror ghosted_conserved_vars_host = Kokkos::create_mirror(ghosted_conserved_vars);
      typename scalar_field_type::HostMirror shared_conserved_vars_host = Kokkos::create_mirror(shared_conserved_vars);
+#endif
 
      id_map_type send_local_ids = mesh_data_.send_local_ids;
      id_map_type recv_local_ids = mesh_data_.recv_local_ids;
@@ -362,13 +364,15 @@ void TimeSolverExplicitRK4<Device>::Solve()
           //copy values to be send from device to host
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
-          //Kokkos::fence();
+#ifdef WITH_GPUAWARE_MPI
+          Kokkos::fence();
+          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
+#else
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
-
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
-
-          //copy values to be sent from host to device
           Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
+#endif
+          //copy values to be sent from host to device
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
           //Kokkos::fence();
@@ -495,7 +499,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
      fprintf(stdout,"\n ... Device Run time: %8.2f seconds ...\n", timer.seconds());
    }
 
-   #if KOKKOS_HAVE_CUDA
+   #ifdef KOKKOS_ENABLE_CUDA
    //CUDA memory usage
    size_t free_bytes, total_bytes;
    double used_MB;

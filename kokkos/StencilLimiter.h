@@ -563,12 +563,16 @@ class StencilLimiter{
   // For min
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
+
+#ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+#else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
-  
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
+#endif
+
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
       Kokkos::fence();
@@ -576,12 +580,16 @@ class StencilLimiter{
   // For max
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
+
+#ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+#else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
-  
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
+#endif
+
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
       Kokkos::fence();
@@ -619,12 +627,14 @@ class StencilLimiter{
 
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
+#ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
+#else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(), ghosted_vars_host.data(), 5);
-  
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
+#endif
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
       Kokkos::fence();

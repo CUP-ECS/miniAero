@@ -559,40 +559,71 @@ class StencilLimiter{
   }
 
   void communicate_min_max(){
-
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::min");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::min::packGhosts");
   // For min
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
 
 #ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
+#endif
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::packGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::min::exchangeGhosts");
+
+#ifdef WITH_GPUAWARE_MPI
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+#else
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
-      Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
 
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::exchangeGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::min::unpackGhosts");
+
+#ifndef WITH_GPUAWARE_MPI
+      Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
+#endif
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
       Kokkos::fence();
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::unpackGhosts");
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min");
 
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::max");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::max::packGhosts");
   // For max
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
 
 #ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
+#endif
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::packGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::max::exchangeGhosts");
+
+#ifdef WITH_GPUAWARE_MPI
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+#else
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
+#endif
+
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::exchangeGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max::max::unpackGhosts");
+#ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
 
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
       Kokkos::fence();
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::unpackGhosts");
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max");
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max");
   // TODO: Maybe combined or overlapped in future.
   }
 
@@ -625,19 +656,35 @@ class StencilLimiter{
 
   void communicate_limiter(solution_field_type limiter) {
 
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter::packGhosts");
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
+
 #ifdef WITH_GPUAWARE_MPI
       Kokkos::fence();
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
+#endif
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::packGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter::exchangeGhosts");
+
+#ifdef WITH_GPUAWARE_MPI
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
+#else
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(), ghosted_vars_host.data(), 5);
+#endif
+
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::exchangeGhosts");
+      Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter::unpackGhosts");
+#ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
       Kokkos::fence();
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::unpackGhosts");
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter");
   }
 
   private:

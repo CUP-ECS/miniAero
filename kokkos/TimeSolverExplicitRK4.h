@@ -362,20 +362,33 @@ void TimeSolverExplicitRK4<Device>::Solve()
         // Update ghosted values (using sol_temp_vec since it is used for all residual calculations.)
 
           //copy values to be send from device to host
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts");
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
 #ifdef WITH_GPUAWARE_MPI
           Kokkos::fence();
-          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 #else
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
+#endif
+          Kokkos::Tools::popRegion(); //("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
+#ifdef WITH_GPUAWARE_MPI
+          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
+#else
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
+#endif
+          Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::unpackGhosts");
+#ifndef WITH_GPUAWARE_MPI
           Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
 #endif
           //copy values to be sent from host to device
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
-          //Kokkos::fence();
+          Kokkos::fence();
+          Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::unpackGhosts");
+          Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts");
         #endif
 
         //Zero fluxes

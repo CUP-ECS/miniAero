@@ -323,15 +323,28 @@ class GreenGauss {
     //communicate the computed gradient for ghost cells.
     void communicate_gradients(gradient_field_type gradients){
       //copy values to be send from device to host
+      Kokkos::Tools::pushRegion("GreenGauss::communicate_gradients");
+      Kokkos::Tools::pushRegion("GreenGauss::communicate_gradients::packGhosts");
       extract_shared_tensor<Device, 5, 3> extract_shared_gradients(gradients, mesh_data_->send_local_ids, shared_gradient_vars);//sol_np1_vec, send_local_ids, shared_cells);
       Kokkos::parallel_for(mesh_data_->num_ghosts,extract_shared_gradients);
 
 #ifdef WITH_GPUAWARE_MPI
       Kokkos::fence(); // wait for the parallel for to finish
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
 #else
       Kokkos::deep_copy(shared_gradient_vars_host, shared_gradient_vars);
+#endif
+
+      Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::packGhosts");
+      Kokkos::Tools::pushRegion("GreenGauss::communicate_gradients::exchangeGhosts");
+#ifdef WITH_GPUAWARE_MPI
+      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
+#else
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15);
+#endif
+
+      Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::exchangeGhosts");
+      Kokkos::Tools::pushRegion("GreenGauss::communicate_gradients::unpackGhosts");
+#ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_gradient_vars, ghosted_gradient_vars_host);
 #endif
 
@@ -339,6 +352,8 @@ class GreenGauss {
       insert_ghost_tensor<Device, 5, 3> insert_ghost_gradients(gradients, mesh_data_->recv_local_ids, ghosted_gradient_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_gradients);
       Kokkos::fence();
+      Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::unpackGhosts");
+      Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients");
     }
 
   private:

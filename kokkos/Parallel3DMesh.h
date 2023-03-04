@@ -420,8 +420,9 @@ public:
     #endif
     mesh_data.num_ghosts = num_ghosted_elems;
     mesh_data.num_owned_cells = num_elems-num_ghosted_elems;
-
     #ifdef WITH_MPI
+    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts");
+    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::packGhosts");
     int total_send_count = 0;
     for(int i = 0;i<mesh_data.sendCount.size();i++)
       total_send_count += mesh_data.sendCount[i];
@@ -442,17 +443,34 @@ public:
 
 #ifdef WITH_GPUAWARE_MPI
     Kokkos::fence();
-    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, shared_volumes.data(),ghost_volumes.data(), 1);
 #else
     Kokkos::deep_copy(host_shared_volumes,shared_volumes);
+#endif
+
+    Kokkos::Tools::popRegion(); //"fillMeshData::communicateGhosts::packGhosts"
+    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::exchangeGhosts");
+
+#ifdef WITH_GPUAWARE_MPI
+    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, shared_volumes.data(),ghost_volumes.data(), 1);
+#else
     communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, host_shared_volumes.data(),host_ghost_volumes.data(), 1);
+#endif
+
+    Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts::exchangeGhosts");
+    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::unpackGhosts");
+
+#ifndef WITH_GPUAWARE_MPI
     Kokkos::deep_copy(ghost_volumes,host_ghost_volumes);
 #endif
 
     Kokkos::parallel_for(total_recv_count, insert_ghost_vector_1d<Device>(
         device_cells.volumes_,mesh_data.recv_local_ids,ghost_volumes));
+    Kokkos::fence();
 
+    Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts::unpackGhosts");
+    Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts");
     #endif
+
 
 
     }

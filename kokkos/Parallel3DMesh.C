@@ -342,7 +342,6 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   }
   MPI_Waitall(comm_count, send_requests, statuses);
   MPI_Waitall(comm_count, recv_requests, statuses);
-
   //Search to determine whether owner of the ghosted element of the other processors.
   //Use a binary search here for efficiency.
   int num_nonghosted_elements=elem_global_ids.size()-num_ghosted_elements;

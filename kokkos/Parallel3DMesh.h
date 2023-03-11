@@ -174,6 +174,8 @@ public:
     template <class Device>
     void fillMeshData(struct MeshData<Device> & mesh_data){
 
+    Kokkos::Tools::pushRegion("fillMeshData");
+    Kokkos::Tools::pushRegion("create faces");
     int num_nodes = getNumberNodes();
     int num_elems = getNumberElements();
     int num_ghosted_elems = getNumberGhostedElements();
@@ -198,27 +200,23 @@ public:
     std::vector<Face> mesh_faces;
     std::vector<Cell> mesh_cells(num_elems);
 
-    time_t faceStartTime=0, faceEndTime=0;
-    time(&faceStartTime);
     create_faces(element_node_conn, mesh_faces, node_coordinates, num_elems, num_nodes);
-    time(&faceEndTime);
-    double faceElapsedTime = difftime(faceEndTime,faceStartTime);
-    if(my_id_==0){
-      fprintf(stdout,"\n ... Face creation time: %8.2f seconds ...\n", faceElapsedTime);
-    }
+    Kokkos::Tools::popRegion();
 
+    Kokkos::Tools::pushRegion("compute volumes, centroids, and BC faces");
     compute_cell_volumes(mesh_cells, element_node_conn, node_coordinates, num_elems, num_ghosted_elems);
     myfile << "Done computing cell volumes" << std::endl;
     compute_cell_centroid(mesh_cells, element_node_conn, node_coordinates, num_elems);
     myfile << "Done compute cell centroids" << std::endl;
 
     delete_ghosted_faces(mesh_faces,num_elems-num_ghosted_elems);
+    Kokkos::Tools::popRegion(); //("compute volumes and centroids");
+
+    Kokkos::Tools::pushRegion("compute faces");
     //Faces - Interior and BC
     std::vector<Face> bc_faces;
     extract_BC_faces(mesh_faces, bc_faces);
 
-    faceStartTime=0, faceEndTime=0;
-    time(&faceStartTime);
     myfile << "BC Faces num:" << bc_faces.size() << std::endl;
 
     //Nodes on top of domain
@@ -263,31 +261,17 @@ public:
     organize_BC_faces(bc_faces, back_faces, back_nodes);
     myfile << "back_faces num: " << back_faces.size() << std::endl;
 
-    time(&faceEndTime);
-    faceElapsedTime = difftime(faceEndTime,faceStartTime);
-    if(my_id_==0){
-      fprintf(stdout,"\n ... Extract BC face and delete ghost time: %8.2f seconds ...\n", faceElapsedTime);
-    }
-
+    Kokkos::Tools::popRegion();
 
     //Parallel communication setup
     #if WITH_MPI
-      if(my_id_==0)
-        std::cout << "Start setup communication." << std::endl;
+      Kokkos::Tools::pushRegion("parallel communication setup");
       std::vector<std::pair<int, int> > sendProcIdent;
       std::vector<std::pair<int, int> > recvProcIdent;
 
-      time_t commStartTime=0, commEndTime=0;
-      time(&commStartTime);
       setupCommunication(element_global_id, num_ghosted_elems, sendProcIdent, recvProcIdent, mesh_data.sendCount, mesh_data.recvCount);
-      time(&commEndTime);
-      double commElapsedTime = difftime(commEndTime,commStartTime);
-      if(my_id_==0){
-        fprintf(stdout,"\n ... Setup Communcation function time: %8.2f seconds ...\n", commElapsedTime);
-      }
 
-      commStartTime=0, commEndTime=0;
-      time(&commStartTime);
+      Kokkos::Tools::pushRegion("compute send and recv IDs");
       std::sort(sendProcIdent.begin(),sendProcIdent.end());
       std::sort(recvProcIdent.begin(),recvProcIdent.end());
 
@@ -318,23 +302,14 @@ public:
             break;
           }
       }
-
-
-
-      time(&commEndTime);
-      commElapsedTime = difftime(commEndTime,commStartTime);
-      if(my_id_==0){
-        fprintf(stdout,"\n ... Rest of setup communication time: %8.2f seconds ...\n", commElapsedTime);
-      }
-      if(my_id_==0)
-        std::cout << "End setup communication." << std::endl;
+      Kokkos::Tools::popRegion();
     #endif
 
     size_t current_mem_usage = 0, high_water_mem_usage = 0;
     get_memory_usage(current_mem_usage, high_water_mem_usage); 
     current_mem_usage = current_mem_usage/(1024.0*1024.0);
     high_water_mem_usage = high_water_mem_usage/(1024.0*1024.0);
-    fprintf(stdout,"\n CPU Memory Usage (Current, High Water) - after mesh setup: %lu MB, %lu MB", current_mem_usage, high_water_mem_usage);
+    fprintf(stdout," CPU Memory Usage (Current, High Water) - after mesh setup: %lu MB, %lu MB\n", current_mem_usage, high_water_mem_usage);
 
     //Fill Kokkos Arrays on HostMirror and copy to Device.
 
@@ -421,8 +396,9 @@ public:
     mesh_data.num_ghosts = num_ghosted_elems;
     mesh_data.num_owned_cells = num_elems-num_ghosted_elems;
     #ifdef WITH_MPI
+
     Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts");
-    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::packGhosts");
+    Kokkos::Tools::pushRegion("packGhosts");
     int total_send_count = 0;
     for(int i = 0;i<mesh_data.sendCount.size();i++)
       total_send_count += mesh_data.sendCount[i];
@@ -448,8 +424,7 @@ public:
 #endif
 
     Kokkos::Tools::popRegion(); //"fillMeshData::communicateGhosts::packGhosts"
-    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::exchangeGhosts");
-
+    Kokkos::Tools::pushRegion("exchangeGhosts");
 #ifdef WITH_GPUAWARE_MPI
     communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, shared_volumes.data(),ghost_volumes.data(), 1);
 #else
@@ -457,7 +432,7 @@ public:
 #endif
 
     Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts::exchangeGhosts");
-    Kokkos::Tools::pushRegion("fillMeshData::communicateGhosts::unpackGhosts");
+    Kokkos::Tools::pushRegion("unpackGhosts");
 
 #ifndef WITH_GPUAWARE_MPI
     Kokkos::deep_copy(ghost_volumes,host_ghost_volumes);
@@ -471,8 +446,8 @@ public:
     Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts");
     #endif
 
-
-
+    Kokkos::Tools::popRegion(); //("parallel communication setup");
+    Kokkos::Tools::popRegion(); //("fillMeshData");
     }
 
 private:

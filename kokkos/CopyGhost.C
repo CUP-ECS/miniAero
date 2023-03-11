@@ -52,18 +52,22 @@ void communicate_ghosted_cell_data(std::vector<int> & sendCount, std::vector<int
   int tag=35;
   int send_offset=0;
   int recv_offset=0;
+  /* Post receives, then sends. */
+  for(int i=0; i<num_procs; ++i){
+    if(i==my_id) continue;
+    if(recvCount[i]!=0){
+      int data_length = recvCount[i]*data_per_cell;
+      MPI_Irecv(recv_data + recv_offset, data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
+      recv_offset+=data_length;
+      comm_count++;
+    }
+  }
   for(int i=0; i<num_procs; ++i){
     if(i==my_id) continue;
     if(sendCount[i]!=0){
       int data_length = sendCount[i]*data_per_cell;
       MPI_Isend(send_data + send_offset, data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
       send_offset+=data_length;
-      comm_count++;
-    }
-    if(recvCount[i]!=0){
-      int data_length = recvCount[i]*data_per_cell;
-      MPI_Irecv(recv_data + recv_offset, data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
-      recv_offset+=data_length;
       comm_count++;
     }
   }

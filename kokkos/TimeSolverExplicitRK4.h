@@ -363,7 +363,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
 
           //copy values to be send from device to host
           Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts");
-          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
+          Kokkos::Tools::pushRegion("packGhosts");
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
 #ifdef WITH_GPUAWARE_MPI
@@ -372,14 +372,14 @@ void TimeSolverExplicitRK4<Device>::Solve()
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
 #endif
           Kokkos::Tools::popRegion(); //("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
-          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
+          Kokkos::Tools::pushRegion("exchangeGhosts");
 #ifdef WITH_GPUAWARE_MPI
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 #else
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
 #endif
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
-          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts::unpackGhosts");
+          Kokkos::Tools::pushRegion("unpackGhosts");
 #ifndef WITH_GPUAWARE_MPI
           Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
 #endif
@@ -518,14 +518,14 @@ void TimeSolverExplicitRK4<Device>::Solve()
    double used_MB;
    cudaMemGetInfo( &free_bytes, &total_bytes);
    used_MB = (total_bytes-free_bytes)/(1024.0*1024.0);
-   fprintf(stdout,"\n Cuda Device Memory Usage: %8.2lf MB", used_MB);
+   fprintf(stdout," Cuda Device Memory Usage: %8.2lf MB\n", used_MB);
    #endif
 
     size_t current_mem_usage, high_water_mem_usage;
     get_memory_usage(current_mem_usage, high_water_mem_usage); 
     current_mem_usage = current_mem_usage/(1024.0*1024.0);
     high_water_mem_usage = high_water_mem_usage/(1024.0*1024.0);
-    fprintf(stdout,"\n CPU Memory Usage (Current, High Water) - end of calculation: %lu MB, %lu MB", current_mem_usage, high_water_mem_usage);
+    fprintf(stdout," CPU Memory Usage (Current, High Water) - end of calculation: %lu MB, %lu MB\n", current_mem_usage, high_water_mem_usage);
 
    //Output to file on the host.  Requires a deep copy from device to host.
    if(options_.output_results){

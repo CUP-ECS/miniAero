@@ -108,6 +108,7 @@ void run(const Options & simulation_options){
   time(&setupStartTime);
 #endif
 
+  Kokkos::Tools::pushRegion("setup");
   //Setup mesh on host
   int nx = simulation_options.nx, ny = simulation_options.ny, nz = simulation_options.nz;
   double lx = simulation_options.lx, ly = simulation_options.ly, lz = simulation_options.lz;
@@ -125,29 +126,17 @@ void run(const Options & simulation_options){
   time(&setupEndTime);
   setupElapsedTime = difftime(setupEndTime,setupStartTime);
 #endif
+  Kokkos::Tools::popRegion(); //("setup");
   if(my_id==0){
     fprintf(stdout,"\n ... Setup time: %8.2f seconds ...\n", setupElapsedTime);
   }
 
+  Kokkos::Tools::pushRegion("solve");
   //Run on device
-#if WITH_MPI
-  double runStartTime=0, runEndTime=0;
-  runStartTime = MPI_Wtime();
-#else
-  time_t runStartTime=0, runEndTime=0;
-  time(&runStartTime);
-#endif
   TimeSolverExplicitRK4<Kokkos::DefaultExecutionSpace> * time_solver = new TimeSolverExplicitRK4<Kokkos::DefaultExecutionSpace>(mesh_data, simulation_options);
   time_solver->Solve();
   delete time_solver;
  
-  double runElapsedTime=0;
-#if WITH_MPI
-  runEndTime = MPI_Wtime();
-  runElapsedTime = runEndTime-runStartTime;
-#else
-  time(&runEndTime);
-  runElapsedTime = difftime(runEndTime,runStartTime);
-#endif
+  Kokkos::Tools::popRegion(); // ("solve");
 }
 

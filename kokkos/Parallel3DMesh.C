@@ -343,8 +343,10 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   MPI_Waitall(comm_count, send_requests, statuses);
   MPI_Waitall(comm_count, recv_requests, statuses);
 
-  //Search to determine whether owner of the ghosted element of the other processors.
-  //Use a binary search here for efficiency.
+  // Search to determine if this process owns the ghosted element of another other 
+  // processors. Sort the list of global IDs so we can use Use a binary search here 
+  // for efficiency. When done,  sendProcIdent will contain a list of pairs of 
+  // [process, globalid we own] that we will need to send to other processes.
   int num_nonghosted_elements=elem_global_ids.size()-num_ghosted_elements;
   std::vector<int>::iterator end_iter = elem_global_ids.begin()+num_nonghosted_elements;
   std::vector<int> sort_global_ids(elem_global_ids.begin(), end_iter );
@@ -368,10 +370,13 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   recvCount.clear();
   recvCount.resize(num_procs_,0);
 
+  // Count how many IDs this process will need to send to oher processes.
   for(int i=0; i<sendProcIdent.size(); ++i){
     sendCount[sendProcIdent[i].first]+=1;
   }
 
+  // Tell other processes how much data this process will send them and find out how
+  // much data we'll receive from them.
   comm_count=0;
   tag=15;
   for(int i=0; i<num_procs_; ++i){
@@ -391,7 +396,7 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
     total_sendCount += sendCount[i];
   }
 
-
+  // Send and receive the actual IDs to be exchanged with each partner
   std::vector<int> recvIdent(total_recvCount, 0);
   std::vector<int> sendIdent(total_sendCount, 0);
   for(int i=0; i<total_sendCount; ++i){
@@ -418,6 +423,9 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   MPI_Waitall(send_comm_count, send_requests, statuses);
   MPI_Waitall(recv_comm_count, recv_requests, statuses);
   int index=0;
+
+  // COnstruct list of [process, global ID we ghost] we'll be receiving
+  // from each process
   for(int i=0; i<num_procs_; ++i)
     for(int j=0; j<recvCount[i]; ++j){
       recvProcIdent.push_back(std::make_pair(i,recvIdent[index]));

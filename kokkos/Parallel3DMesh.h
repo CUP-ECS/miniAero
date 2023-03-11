@@ -301,25 +301,19 @@ public:
           recvProcessorOffset[i]+=recvProcessorOffset[i-1]+mesh_data.recvCount[i-1];
       }
 
+      // Need to map the global IDs being sent and received to the local indexes 
+      // where they're stored. Create a map that does so instead of doing an
+      // N^2 search for them.
+
+      std::map<int, int> globalToLocal;
+      for(int i=0; i<element_global_id.size();++i)
+          globalToLocal[element_global_id[i]] = i;
+
       std::vector<int> sendLocalID, recvLocalID;
       for(int i=0; i<sendProcIdent.size();++i)
-      {
-        for(int j=0; j<element_global_id.size(); ++j)
-          if(element_global_id[j]==sendProcIdent[i].second){
-            sendLocalID.push_back(j);
-            break;
-          }
-      }
+        sendLocalID.push_back(globalToLocal[sendProcIdent[i].second]);
       for(int i=0; i<recvProcIdent.size();++i)
-      {
-        for(int j=0; j<element_global_id.size(); ++j)
-          if(element_global_id[j]==recvProcIdent[i].second){
-            recvLocalID.push_back(j);
-            break;
-          }
-      }
-
-
+        recvLocalID.push_back(globalToLocal[recvProcIdent[i].second]);
 
       time(&commEndTime);
       commElapsedTime = difftime(commEndTime,commStartTime);
@@ -359,7 +353,9 @@ public:
     Faces<Device> back_boundary_faces(nback_faces, 1);
 
 
-    //Shuffle internal faces
+    // Shuffle internal faces (presumably so that access patterns better
+    // mimic the irregular memory access patterns on a real unstructured
+    // mesh)
     std::random_device rd;
     std::mt19937 g(rd());
     std::shuffle(mesh_faces.begin(), mesh_faces.end(), g);

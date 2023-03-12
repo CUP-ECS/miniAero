@@ -36,30 +36,19 @@ miniAero also has two other configuration variables:
 Miniaero_ENABLE_MPI - Build with MPI support (Default ON)
 Miniaero_ENABLE_GPUAWARE_MPI - Build with GPU-Aware MPI support (Default OFF)
 
-Generally, after installing Kokkos, miniAero built using either an in-tree
-build:
+Generally, after installing Kokkos, miniAero built using either an out-of-tree build:
 ```
-> cmake -DCMAKE_PREFIX_PATH=/path/to/kokkos/install ..
-> make
-```
-
-or an out-of-tree build:
-```
-> mkdir ../build
-> cd ../build
+> mkdir build
+> cd build
 > cmake -DCMAKE_PREFIX_PATH=/path/to/kokkos/install ..
 > make
 ```
 
 For more information please refer to the Kokkos documentation. 
 
----------------------
-
 ## Running MiniAero
-To run MiniAero, run the executable in serial:
-./miniaero
-Or using MPI for parallel:
-mpirun -np #num_procs ./miniaero
+To run MiniAero, run the executable in serial: ``./miniaero``
+Or using MPI for parallel: ``mpirun -np #num_procs ./miniaero``
 
 MiniAero will read in the input file which is hard-coded to be named
 miniaero.inp.  miniaero.inp must be in the current directory.

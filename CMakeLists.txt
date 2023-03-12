@@ -10,4 +10,4 @@ find_package(Kokkos 3.6 REQUIRED)
 find_package(MPI REQUIRED)
 
 # library
-add_subdirectory(kokkos)
+add_subdirectory(src)

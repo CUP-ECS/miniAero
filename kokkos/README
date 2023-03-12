@@ -28,29 +28,30 @@ meshes may be created on device(GPU or Xeon Phi or other).
 
 II) Building MiniAero
 
-MiniAero has minimal dependencies. It directly depends on the
-Kokkos library. You can check this out from github:
-git clone https://github.com:kokkos/kokkos
+MiniAero depends on the Kokkos library, which you can check out from 
+github: git clone https://github.com:kokkos/kokkos
 
-MiniAero uses simple Makefiles and builds Kokkos as an 
-integrated library (i.e. you do not need to pre-install 
-Kokkos). 
+MiniAero uses CMake to build and assumes Kokkos is installed elsewhere.
+When building MiniAero, the install location can be specified by
+setting the CMAKE_PREFIX_PATH variable. In addition to this variable, 
+miniAero also has two other configuration variables:
+Miniaero_ENABLE_MPI - Build with MPI support (Default ON)
+Miniaero_ENABLE_GPUAWARE_MPI - Build with GPU-Aware MPI support (Default OFF)
 
-Simply run:
-make KOKKOS_PATH=${PATH_TO_KOKKOS_CHECKOUT_DIRECTORY} -j 
-or 
-make KOKKOS_PATH=${PATH_TO_KOKKOS_CHECKOUT_DIRECTORY} -f Makefile.mpi -j
+Generally, after installing Kokkos, miniAero built using either an in-tree
+build:
+```
+> cmake -DCMAKE_PREFIX_PATH=/path/to/kokkos/install ..
+> make
+```
 
-This will produce miniAero.host and miniAero.mpi.
-
-If you checked Kokkos out directly in your home directory (i.e. it is located 
-in ${HOME}/kokkos. You do not need to specify the path. 
-
-Usual Kokkos gnu make options apply. For example to build on IBM Power8 for
-NVIDIA P100 GPUs:
-make KOKKOS_ARCH=Power8,Pascal60 KOKKOS_DEVICES=Cuda,OpenMP -j
-or to build for Intel KNL:
-make KOKKOS_ARCH=KNL CXX=icpc -j
+or an out-of-tree build:
+```
+> mkdir ../build
+> cd ../build
+> cmake -DCMAKE_PREFIX_PATH=/path/to/kokkos/install ..
+> make
+```
 
 For more information please refer to the Kokkos documentation. 
 

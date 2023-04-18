@@ -560,7 +560,10 @@ class StencilLimiter{
 
   void communicate_min_max(){
       Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max");
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::pushRegion("packGhosts");
+#endif
+
   // For min
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
@@ -570,8 +573,11 @@ class StencilLimiter{
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
+
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
+#endif
 
 #ifdef WITH_GPUAWARE_MPI
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
@@ -579,19 +585,21 @@ class StencilLimiter{
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
 
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
+#endif
 
 #ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
-      Kokkos::fence();
-      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::unpackGhosts");
 
-  // For max
+#ifdef Miniaero_PROFILE_COMMUNICATION
+      Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::unpackGhosts");
       Kokkos::Tools::pushRegion("packGhosts");
+#endif
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
 
@@ -600,8 +608,10 @@ class StencilLimiter{
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
+#endif
 
 #ifdef WITH_GPUAWARE_MPI
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
@@ -609,16 +619,20 @@ class StencilLimiter{
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
 
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
+#endif
+
 #ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
-
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
       Kokkos::fence();
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::unpackGhosts");
+#endif
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max");
   // TODO: Maybe combined or overlapped in future.
   }
@@ -653,7 +667,9 @@ class StencilLimiter{
   void communicate_limiter(solution_field_type limiter) {
 
       Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter");
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::pushRegion("packGhosts");
+#endif
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
 
@@ -662,8 +678,10 @@ class StencilLimiter{
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
+#endif
 
 #ifdef WITH_GPUAWARE_MPI
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
@@ -671,15 +689,19 @@ class StencilLimiter{
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(), ghosted_vars_host.data(), 5);
 #endif
 
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
+#endif
 #ifndef WITH_GPUAWARE_MPI
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
 #endif
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
       Kokkos::fence();
+#ifdef Miniaero_PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::unpackGhosts");
+#endif
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter");
   }
 

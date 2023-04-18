@@ -354,16 +354,20 @@ void TimeSolverExplicitRK4<Device>::Solve()
       for (unsigned irk = 0; irk < stages_; ++irk)
       {
         //Update temporary solution used to evaluate the residual for this RK stage
+        Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::StageUpdate");
         update<Device> update_rk_stage(alpha_[irk], res_vec, sol_n_vec, sol_temp_vec);
         Kokkos::parallel_for(nowned_cells, update_rk_stage);
+        Kokkos::Tools::popRegion();
         //Kokkos::fence();
 
         #ifdef WITH_MPI
         // Update ghosted values (using sol_temp_vec since it is used for all residual calculations.)
 
           //copy values to be send from device to host
-          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::communicateGhosts");
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::communicateGhosts");
+#ifdef Miniaero_PROFILE_COMMUNICATION
           Kokkos::Tools::pushRegion("packGhosts");
+#endif
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
 #ifdef WITH_GPUAWARE_MPI
@@ -371,15 +375,19 @@ void TimeSolverExplicitRK4<Device>::Solve()
 #else
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
 #endif
+#ifdef Miniaero_PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); //("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
           Kokkos::Tools::pushRegion("exchangeGhosts");
+#endif
 #ifdef WITH_GPUAWARE_MPI
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 #else
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
 #endif
+#ifdef Miniaero_PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
           Kokkos::Tools::pushRegion("unpackGhosts");
+#endif
 #ifndef WITH_GPUAWARE_MPI
           Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
 #endif
@@ -387,28 +395,38 @@ void TimeSolverExplicitRK4<Device>::Solve()
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
           Kokkos::fence();
+#ifdef Miniaero_PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::unpackGhosts");
+#endif
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts");
         #endif
 
+        Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::ZeroFluxes");
         //Zero fluxes
         zero_cell_flux<Device> zero_flux(cells);
         Kokkos::parallel_for(nowned_cells, zero_flux);
         Kokkos::fence();
+        Kokkos::Tools::popRegion();
 
         //Compute Gradients and Limiters
         if(options_.second_order_space || options_.viscous){
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::GreenGauss");
           green_gauss_gradient.compute_gradients(sol_temp_vec, gradients);
+          Kokkos::Tools::popRegion();
 #ifdef WITH_MPI
           green_gauss_gradient.communicate_gradients(gradients);
 #endif
         }
         if(options_.second_order_space){
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::ComputeMinMax");
           stencil_limiter.compute_min_max(sol_temp_vec);
+          Kokkos::Tools::popRegion();
 #ifdef WITH_MPI
           stencil_limiter.communicate_min_max();
 #endif
+          Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::ComputeLimiter");
           stencil_limiter.compute_limiter(sol_temp_vec, limiters, gradients);
+          Kokkos::Tools::popRegion();
 #ifdef WITH_MPI
           stencil_limiter.communicate_limiter(limiters);
 #endif
@@ -416,6 +434,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
 
 
         //Compute internal face fluxes
+        Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::ComputeFlux");
         roe_flux<Device> inviscid_flux_evaluator;
         if(options_.viscous){
           newtonian_viscous_flux<Device> viscous_flux_evaluator;
@@ -500,6 +519,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
         update<Device> update_fields(beta_[irk],res_vec,sol_np1_vec,sol_np1_vec);
         Kokkos::parallel_for(nowned_cells, update_fields);
         Kokkos::fence();
+        Kokkos::Tools::popRegion();
       }
       // Update the solution vector after having run all of the RK stages.
       copy<Device> copy_solution( sol_np1_vec, sol_n_vec);

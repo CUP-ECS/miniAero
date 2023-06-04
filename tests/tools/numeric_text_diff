@@ -43,7 +43,8 @@ for filename in args:
     fail("%s does not exist or is not a normal file!" % filename)
 
 # Diff the two files
-diff_output = Popen("diff -u %s %s" % (file1, file2), shell=True, stdout=PIPE).stdout
+pipe = Popen("diff -u %s %s" % (file1, file2), shell=True, text=True, stdout=PIPE)
+diff_output = pipe.stdout
 
 before = []
 after = []

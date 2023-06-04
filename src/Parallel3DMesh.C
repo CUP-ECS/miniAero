@@ -303,7 +303,7 @@ void Parallel3DMesh::compute_processor_arrangement(){
 }
 
 #if WITH_MPI
-void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int num_ghosted_elements,
+void Parallel3DMesh::setupCommunicationPartners(std::vector<int> & elem_global_ids, int num_ghosted_elements,
     std::vector<std::pair<int, int> > & sendProcIdent,
     std::vector<std::pair<int, int> > & recvProcIdent,
     std::vector<int> & sendCount,
@@ -343,10 +343,10 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   MPI_Waitall(comm_count, send_requests, statuses);
   MPI_Waitall(comm_count, recv_requests, statuses);
 
-  // Search to determine if this process owns the ghosted element of another other 
-  // processors. Sort the list of global IDs so we can use Use a binary search here 
-  // for efficiency. When done,  sendProcIdent will contain a list of pairs of 
-  // [process, globalid we own] that we will need to send to other processes.
+  // Search to determine if this process owns the ghosted element of another
+  // other processors. Sort the list of global IDs so we can use a binary search
+  // here for efficiency. When done,  sendProcIdent will contain a list of pairs
+  // of [process, globalid we own] that we will need to send to other processes.
   int num_nonghosted_elements=elem_global_ids.size()-num_ghosted_elements;
   std::vector<int>::iterator end_iter = elem_global_ids.begin()+num_nonghosted_elements;
   std::vector<int> sort_global_ids(elem_global_ids.begin(), end_iter );
@@ -375,8 +375,10 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
     sendCount[sendProcIdent[i].first]+=1;
   }
 
-  // Tell other processes how much data this process will send them and find out how
-  // much data we'll receive from them.
+  // Tell other processes how much data this process will send them and find 
+  // out how much data we'll receive from them. XXX this is an all gather all 
+  // done as looped point to points, but it's done only once so not performance
+  // critical in this code. XXX
   comm_count=0;
   tag=15;
   for(int i=0; i<num_procs_; ++i){
@@ -424,7 +426,7 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   MPI_Waitall(recv_comm_count, recv_requests, statuses);
   int index=0;
 
-  // COnstruct list of [process, global ID we ghost] we'll be receiving
+  // Construct list of [process, global ID we ghost] we'll be receiving
   // from each process
   for(int i=0; i<num_procs_; ++i)
     for(int j=0; j<recvCount[i]; ++j){
@@ -436,5 +438,21 @@ void Parallel3DMesh::setupCommunication(std::vector<int> & elem_global_ids, int 
   delete [] recv_requests;
   delete [] statuses;
   delete [] ghost_element_ids;
+
 }
+
+// Now that we know our communication partners, setup the actual 
+// communication scheme to talk with them. Could involve
+// neighbor collectives, partition communication matching, schedules, stream
+// triggering, or a range of other options. 
+void Parallel3DMesh::setupCommunicationPlan(
+    std::vector<int> & sendCount,
+    std::vector<int> & recvCount,
+    std::vector<int> & sendProcOffset,
+    std::vector<int> & recvProcOffset,
+    MPI_Comm &comm){
+
+    // In the base version, we simply dup COMM_WORLD as the communicator to use.
+    MPI_Comm_dup(MPI_COMM_WORLD, &comm);
+} 
 #endif

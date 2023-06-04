@@ -269,7 +269,7 @@ public:
       std::vector<std::pair<int, int> > sendProcIdent;
       std::vector<std::pair<int, int> > recvProcIdent;
 
-      setupCommunication(element_global_id, num_ghosted_elems, sendProcIdent, recvProcIdent, mesh_data.sendCount, mesh_data.recvCount);
+      setupCommunicationPartners(element_global_id, num_ghosted_elems, sendProcIdent, recvProcIdent, mesh_data.sendCount, mesh_data.recvCount);
 
       Kokkos::Tools::pushRegion("compute send and recv IDs");
       std::sort(sendProcIdent.begin(),sendProcIdent.end());
@@ -285,7 +285,7 @@ public:
           recvProcessorOffset[i]+=recvProcessorOffset[i-1]+mesh_data.recvCount[i-1];
       }
 
-      // Need to map the global IDs being sent and received to the local indexes 
+      // Need to map the global IDs being sent and received to the local indexes
       // where they're stored. Create a map that does so instead of doing an
       // N^2 search for them.
 
@@ -299,6 +299,8 @@ public:
       for(int i=0; i<recvProcIdent.size();++i)
         recvLocalID.push_back(globalToLocal[recvProcIdent[i].second]);
       Kokkos::Tools::popRegion();
+
+      setupCommunicationPlan(mesh_data.sendCount, mesh_data.recvCount, sendProcessorOffset, recvProcessorOffset, mesh_data.comm_);
     #endif
 
     size_t current_mem_usage = 0, high_water_mem_usage = 0;
@@ -515,6 +517,10 @@ private:
     double lx_, ly_, lz_;
     int problem_type_;
     double ramp_angle;
+
+#if WITH_MPI
+    MPI_Comm comm_;
+#endif
 
     std::ofstream myfile;
 };

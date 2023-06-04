@@ -41,7 +41,6 @@ set(SOURCES
   MemoryUsage.C
   Parallel3DMesh.C
   YAML_Element.C
-  CopyGhost.C
   ElementTopoHexa8.C
   Main.C
   MeshProcessor.C

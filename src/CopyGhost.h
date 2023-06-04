@@ -38,6 +38,9 @@
 
 #include <Kokkos_Core.hpp>
 #include <vector>
+
+#include <MeshData.h>
+
 /* extract_shared_vector
  * functor to copy ghosted vector data from full array to buffer to send to other processors.
  */
@@ -209,12 +212,5 @@ struct insert_ghost_tensor{
     }
   }
 };
-
-/*communicate_ghosted_cell_data
- * function to communicate buffered data between processors that share ghosted data.
- */
-void communicate_ghosted_cell_data(std::vector<int> & sendCount, std::vector<int> & recvCount,
-    double *send_data, double *recv_data, int data_per_cell);
-
 
 #endif /* COPYGHOST_H_ */

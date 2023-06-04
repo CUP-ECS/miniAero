@@ -380,9 +380,9 @@ void TimeSolverExplicitRK4<Device>::Solve()
           Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
 #ifdef WITH_GPUAWARE_MPI
-          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
+          mesh_data_.communicate_ghosted_cell_data(shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 #else
-          communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
+          mesh_data_.communicate_ghosted_cell_data(shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
 #endif
 #ifdef Miniaero_PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");

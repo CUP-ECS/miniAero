@@ -426,9 +426,9 @@ public:
     Kokkos::Tools::popRegion(); //"fillMeshData::communicateGhosts::packGhosts"
     Kokkos::Tools::pushRegion("exchangeGhosts");
 #ifdef WITH_GPUAWARE_MPI
-    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, shared_volumes.data(),ghost_volumes.data(), 1);
+    mesh_data.communicate_ghosted_cell_data(shared_volumes.data(),ghost_volumes.data(), 1);
 #else
-    communicate_ghosted_cell_data(mesh_data.sendCount, mesh_data.recvCount, host_shared_volumes.data(),host_ghost_volumes.data(), 1);
+    mesh_data.communicate_ghosted_cell_data(host_shared_volumes.data(),host_ghost_volumes.data(), 1);
 #endif
 
     Kokkos::Tools::popRegion(); //("fillMeshData::communicateGhosts::exchangeGhosts");
@@ -502,11 +502,17 @@ private:
 
     void compute_processor_arrangement();
 
-    void setupCommunication(std::vector<int> & elem_global_ids, int num_ghosted_elements,
+    void setupCommunicationPartners(std::vector<int> & elem_global_ids, int num_ghosted_elements,
         std::vector<std::pair<int, int> > & sendProcIdent,
         std::vector<std::pair<int, int> > & recvProcIdent,
         std::vector<int> & sendCount,
         std::vector<int> & recvCount);
+
+    void setupCommunicationPlan(std::vector<int> & sendCount,
+        std::vector<int> & recvCount,
+        std::vector<int> & sendOffset,
+        std::vector<int> & recvOffset, 
+        MPI_Comm &comm);
 
     int num_procs_, my_id_;
     int x_block_, y_block_, z_block_;
@@ -517,11 +523,6 @@ private:
     double lx_, ly_, lz_;
     int problem_type_;
     double ramp_angle;
-
-#if WITH_MPI
-    MPI_Comm comm_;
-#endif
-
     std::ofstream myfile;
 };
 

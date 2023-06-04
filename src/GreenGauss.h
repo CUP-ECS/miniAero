@@ -341,9 +341,9 @@ class GreenGauss {
       Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
 #ifdef WITH_GPUAWARE_MPI
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
+      mesh_data_->communicate_ghosted_cell_data(shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
 #else
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15);
+      mesh_data_->communicate_ghosted_cell_data(shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15);
 #endif
 
 #ifdef Miniaero_PROFILE_COMMUNICATION

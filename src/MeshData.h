@@ -32,6 +32,11 @@
 #include <vector>
 #include <utility>
 #include <string>
+
+#if WITH_MPI
+#include <mpi.h>
+#endif
+
 template<class Device> struct Cells;
 template<class Device> struct Faces;
 
@@ -55,6 +60,55 @@ struct MeshData{
   Cells<Device> mesh_cells;
   Faces<Device> internal_faces;
   std::vector<std::pair<std::string, Faces<Device> > > boundary_faces;
+
+#if WITH_MPI
+    MPI_Comm comm_;
+#endif
+
+void communicate_ghosted_cell_data(double *send_data, double *recv_data, int data_per_cell)
+{
+#ifdef WITH_MPI
+  int num_procs, my_id;
+  MPI_Comm_size(comm_, &num_procs);
+  MPI_Comm_rank(comm_, &my_id);
+
+  // communicate values to other processors
+  MPI_Request * requests = new MPI_Request[2*(num_procs-1)];
+  MPI_Status * statuses = new MPI_Status[2*(num_procs-1)];
+  int comm_count=0;
+  int tag=35;
+  int send_offset=0;
+  int recv_offset=0;
+
+  /* We assume all our data is ready now */
+
+  /* Post receives, then sends. */
+  for(int i=0; i<num_procs; ++i){
+    if(i==my_id) continue;
+    if(recvCount[i]!=0){
+      int data_length = recvCount[i]*data_per_cell;
+      MPI_Irecv(recv_data + recv_offset, data_length, MPI_DOUBLE, i, tag, comm_, &requests[comm_count]);
+      recv_offset+=data_length;
+      comm_count++;
+    }
+  }
+  for(int i=0; i<num_procs; ++i){
+    if(i==my_id) continue;
+    if(sendCount[i]!=0){
+      int data_length = sendCount[i]*data_per_cell;
+      MPI_Isend(send_data + send_offset, data_length, MPI_DOUBLE, i, tag, comm_, &requests[comm_count]);
+      send_offset+=data_length;
+      comm_count++;
+    }
+  }
+  MPI_Waitall(comm_count, requests, statuses);
+
+  delete [] requests;
+  delete [] statuses;
+
+#endif
+}
+
 };
 
 #endif

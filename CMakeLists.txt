@@ -7,7 +7,7 @@ option(Miniaero_ENABLE_GPUAWARE_MPI "Enable MPI Support in MiniAero" OFF)
 option(Miniaero_PROFILE_COMMUNICATION "Enable fine-grain communication region annotations" OFF)
 
 # find kokkos
-find_package(Kokkos 3.6 REQUIRED)
+find_package(Kokkos 4.0 REQUIRED)
 find_package(MPI REQUIRED)
 
 # library

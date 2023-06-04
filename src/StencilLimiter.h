@@ -580,9 +580,9 @@ class StencilLimiter{
 #endif
 
 #ifdef WITH_GPUAWARE_MPI
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars.data(),ghosted_vars.data(), 5);
 #else
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
 
 #ifdef Miniaero_PROFILE_COMMUNICATION
@@ -614,9 +614,9 @@ class StencilLimiter{
 #endif
 
 #ifdef WITH_GPUAWARE_MPI
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(),ghosted_vars.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars.data(),ghosted_vars.data(), 5);
 #else
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(),ghosted_vars_host.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
 
 #ifdef Miniaero_PROFILE_COMMUNICATION
@@ -684,9 +684,9 @@ class StencilLimiter{
 #endif
 
 #ifdef WITH_GPUAWARE_MPI
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars.data(), ghosted_vars.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars.data(), ghosted_vars.data(), 5);
 #else
-      communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.data(), ghosted_vars_host.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(), ghosted_vars_host.data(), 5);
 #endif
 
 #ifdef Miniaero_PROFILE_COMMUNICATION

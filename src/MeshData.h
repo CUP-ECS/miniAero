@@ -62,11 +62,11 @@ struct MeshData{
   std::vector<std::pair<std::string, Faces<Device> > > boundary_faces;
 
 #if WITH_MPI
-  /* These vectors contain the base offsets for each communication. When we're
-   * sending more than one element per item, this will need to be scaled up
+  /* These vectors contain the base counts and offsets for each communication. 
+   * When we're sending more than one element per item, this will need to be scaled up
    * appropriately. */
-  std::vector<int> mpiSendOffsets;
-  std::vector<int> mpiRecvOffsets;
+  std::vector<int> mpiSendCounts, mpiSendOffsets;
+  std::vector<int> mpiRecvCounts, mpiRecvOffsets;
   MPI_Comm comm_;
 #endif
 
@@ -77,40 +77,29 @@ void communicate_ghosted_cell_data(double *send_data, double *recv_data, int dat
   MPI_Comm_size(comm_, &num_procs);
   MPI_Comm_rank(comm_, &my_id);
 
-  // communicate values to other processors
-  MPI_Request * requests = new MPI_Request[2*(num_procs-1)];
-  MPI_Status * statuses = new MPI_Status[2*(num_procs-1)];
-  int comm_count=0;
-  int tag=35;
-  int send_offset=0;
-  int recv_offset=0;
+  std::vector<int> scaled_send_offsets, scaled_send_counts,
+      scaled_recv_offsets, scaled_recv_counts;
 
-  /* We assume all our data is ready now */
-
-  /* Post receives, then sends. */
-  for(int i=0; i<num_procs; ++i){
-    if(i==my_id) continue;
-    if(recvCount[i]!=0){
-      int data_length = recvCount[i]*data_per_cell;
-      MPI_Irecv(recv_data + recv_offset, data_length, MPI_DOUBLE, i, tag, comm_, &requests[comm_count]);
-      recv_offset+=data_length;
-      comm_count++;
+  if (data_per_cell == 1) {
+    scaled_send_offsets = mpiSendOffsets;
+    scaled_send_counts = mpiSendCounts;
+    scaled_recv_offsets = mpiRecvOffsets;
+    scaled_recv_counts = mpiRecvCounts;
+  } else {
+    for (int i = 0; i < mpiSendOffsets.size(); i++) {
+      scaled_send_offsets.push_back(mpiSendOffsets[i] * data_per_cell);
+      scaled_send_counts.push_back(mpiSendCounts[i] * data_per_cell);
+      scaled_recv_offsets.push_back(mpiRecvOffsets[i] * data_per_cell);
+      scaled_recv_counts.push_back(mpiRecvCounts[i] * data_per_cell);
     }
-  }
-  for(int i=0; i<num_procs; ++i){
-    if(i==my_id) continue;
-    if(sendCount[i]!=0){
-      int data_length = sendCount[i]*data_per_cell;
-      MPI_Isend(send_data + send_offset, data_length, MPI_DOUBLE, i, tag, comm_, &requests[comm_count]);
-      send_offset+=data_length;
-      comm_count++;
-    }
-  }
-  MPI_Waitall(comm_count, requests, statuses);
+  } 
 
-  delete [] requests;
-  delete [] statuses;
-
+  MPI_Neighbor_alltoallv(send_data, scaled_send_counts.data(), 
+                         scaled_send_offsets.data(), MPI_DOUBLE,
+                         recv_data, scaled_recv_counts.data(),
+                         scaled_recv_offsets.data(), MPI_DOUBLE,
+                         comm_);
+   
 #endif
 }
 
@@ -131,7 +120,7 @@ void setup_communication_plan()
     for (int count: sendCount) {
         if (count > 0) { 
             sendProcs.push_back(rank);
-            sendWeights.push_back(count);
+            mpiSendCounts.push_back(count);
             mpiSendOffsets.push_back(send_offsets[rank]);
         }
         ++rank;
@@ -140,7 +129,7 @@ void setup_communication_plan()
     for (int count: recvCount) {
         if (count > 0) { 
             recvProcs.push_back(rank);
-            recvWeights.push_back(count);
+            mpiRecvCounts.push_back(count);
             mpiRecvOffsets.push_back(recv_offsets[rank]);
         }
         ++rank;
@@ -148,8 +137,8 @@ void setup_communication_plan()
 
     // Create a distributed graph communicator for use in a neighbor collective
     MPI_Dist_graph_create_adjacent(MPI_COMM_WORLD, 
-                                   recvProcs.size(), recvProcs.data(), recvWeights.data(),
-                                   sendProcs.size(), sendProcs.data(), sendWeights.data(),
+                                   recvProcs.size(), recvProcs.data(), mpiRecvCounts.data(),
+                                   sendProcs.size(), sendProcs.data(), mpiSendCounts.data(),
                                    MPI_INFO_NULL, 1,
                                    &comm_);
 #endif

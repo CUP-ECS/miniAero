@@ -275,14 +275,14 @@ public:
       std::sort(sendProcIdent.begin(),sendProcIdent.end());
       std::sort(recvProcIdent.begin(),recvProcIdent.end());
 
-      std::vector<int> & sendProcessorOffset = mesh_data.send_offset;
-      std::vector<int> & recvProcessorOffset = mesh_data.recv_offset;
-      sendProcessorOffset.resize(num_procs_,0);
-      recvProcessorOffset.resize(num_procs_,0);
+      std::vector<int> & sendProcessorOffsets = mesh_data.send_offsets;
+      std::vector<int> & recvProcessorOffsets = mesh_data.recv_offsets;
+      sendProcessorOffsets.resize(num_procs_,0);
+      recvProcessorOffsets.resize(num_procs_,0);
 
       for(int i=1; i<num_procs_; ++i){
-          sendProcessorOffset[i]+=sendProcessorOffset[i-1]+mesh_data.sendCount[i-1];
-          recvProcessorOffset[i]+=recvProcessorOffset[i-1]+mesh_data.recvCount[i-1];
+          sendProcessorOffsets[i]+=sendProcessorOffsets[i-1]+mesh_data.sendCount[i-1];
+          recvProcessorOffsets[i]+=recvProcessorOffsets[i-1]+mesh_data.recvCount[i-1];
       }
 
       // Need to map the global IDs being sent and received to the local indexes
@@ -300,7 +300,7 @@ public:
         recvLocalID.push_back(globalToLocal[recvProcIdent[i].second]);
       Kokkos::Tools::popRegion();
 
-      setupCommunicationPlan(mesh_data.sendCount, mesh_data.recvCount, sendProcessorOffset, recvProcessorOffset, mesh_data.comm_);
+      mesh_data.setup_communication_plan();
     #endif
 
     size_t current_mem_usage = 0, high_water_mem_usage = 0;
@@ -507,12 +507,6 @@ private:
         std::vector<std::pair<int, int> > & recvProcIdent,
         std::vector<int> & sendCount,
         std::vector<int> & recvCount);
-
-    void setupCommunicationPlan(std::vector<int> & sendCount,
-        std::vector<int> & recvCount,
-        std::vector<int> & sendOffset,
-        std::vector<int> & recvOffset, 
-        MPI_Comm &comm);
 
     int num_procs_, my_id_;
     int x_block_, y_block_, z_block_;

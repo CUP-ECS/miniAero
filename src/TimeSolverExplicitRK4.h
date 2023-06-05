@@ -299,6 +299,16 @@ void TimeSolverExplicitRK4<Device>::Solve()
      typename scalar_field_type::HostMirror shared_conserved_vars_host = Kokkos::create_mirror(shared_conserved_vars);
 #endif
 
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+     MPI_Request req;
+#ifdef WITH_GPUAWARE_MPI
+     mesh_data_.init_communication_request(shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5, req);
+#else
+     mesh_data_.init_communication_request(shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5, req);
+#endif
+#endif
+
      id_map_type send_local_ids = mesh_data_.send_local_ids;
      id_map_type recv_local_ids = mesh_data_.recv_local_ids;
      #else
@@ -365,7 +375,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
 
           //copy values to be send from device to host
           Kokkos::Tools::pushRegion("TimeSolverExplicitRK4::Solve::RK::communicateGhosts");
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
           Kokkos::Tools::pushRegion("packGhosts");
 #endif
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
@@ -375,16 +385,21 @@ void TimeSolverExplicitRK4<Device>::Solve()
 #else
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
 #endif
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); //("TimeSolverExplicitRK4::Solve::communicateGhosts::packGhosts");
           Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+          mesh_data_.communicate_ghosted_cell_data(req);
+#else //!ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
           mesh_data_.communicate_ghosted_cell_data(shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5);
 #else
           mesh_data_.communicate_ghosted_cell_data(shared_conserved_vars_host.data(),ghosted_conserved_vars_host.data(), 5);
 #endif
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#endif // !ENABLE_LOCALITY_AWARE_MPI
+#ifdef PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::exchangeGhosts");
           Kokkos::Tools::pushRegion("unpackGhosts");
 #endif
@@ -395,7 +410,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
           Kokkos::fence();
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts::unpackGhosts");
 #endif
           Kokkos::Tools::popRegion(); // ("TimeSolverExplicitRK4::Solve::communicateGhosts");

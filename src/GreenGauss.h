@@ -282,6 +282,7 @@ class GreenGauss {
   typedef typename ViewTypes<Device>::scalar_field_type scalar_field_type;
   typedef typename ViewTypes<Device>::solution_field_type solution_field_type;
   typedef typename ViewTypes<Device>::gradient_field_type gradient_field_type;
+
   public:
     GreenGauss(){}
 
@@ -293,8 +294,16 @@ class GreenGauss {
       ghosted_gradient_vars("ghosted_gradient_vars", total_recv_count*5*3),
       ghosted_gradient_vars_host(Kokkos::create_mirror(ghosted_gradient_vars)),
       shared_gradient_vars("shared_gradient_vars", total_send_count*5*3),
-      shared_gradient_vars_host(Kokkos::create_mirror(shared_gradient_vars))
-        {}
+      shared_gradient_vars_host(Kokkos::create_mirror(shared_gradient_vars)) {
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+#ifdef WITH_GPUAWARE_MPI
+      mesh_data_->init_communication_request(shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15, req_);
+#else
+      mesh_data_->init_communication_request(shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15, req_);
+#endif
+#endif
+    }
 
     //computes the gradient on locally owned cells.
     void compute_gradients(solution_field_type sol_np1_vec, gradient_field_type gradients){
@@ -324,7 +333,7 @@ class GreenGauss {
     void communicate_gradients(gradient_field_type gradients){
       //copy values to be send from device to host
       Kokkos::Tools::pushRegion("GreenGauss::communicate_gradients");
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::pushRegion("packGhosts");
 #endif
       extract_shared_tensor<Device, 5, 3> extract_shared_gradients(gradients, mesh_data_->send_local_ids, shared_gradient_vars);//sol_np1_vec, send_local_ids, shared_cells);
@@ -336,17 +345,22 @@ class GreenGauss {
       Kokkos::deep_copy(shared_gradient_vars_host, shared_gradient_vars);
 #endif
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+    mesh_data_->communicate_ghosted_cell_data(req_);
+#else // !ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
       mesh_data_->communicate_ghosted_cell_data(shared_gradient_vars.data(),ghosted_gradient_vars.data(), 15);
 #else
       mesh_data_->communicate_ghosted_cell_data(shared_gradient_vars_host.data(),ghosted_gradient_vars_host.data(), 15);
 #endif
+#endif // !ENABLE_LOCALITY_AWARE_MPI
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
 #endif
@@ -358,7 +372,7 @@ class GreenGauss {
       insert_ghost_tensor<Device, 5, 3> insert_ghost_gradients(gradients, mesh_data_->recv_local_ids, ghosted_gradient_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_gradients);
       Kokkos::fence();
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients::unpackGhosts");
 #endif
       Kokkos::Tools::popRegion(); // ("GreenGauss::communicate_gradients");
@@ -373,4 +387,7 @@ class GreenGauss {
     typename scalar_field_type::HostMirror ghosted_gradient_vars_host;
     scalar_field_type shared_gradient_vars;
     typename scalar_field_type::HostMirror shared_gradient_vars_host;
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+    MPI_Request req_;
+#endif
 };

@@ -32,9 +32,14 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <cassert>
 
 #if WITH_MPI
 #include <mpi.h>
+#endif
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+#include <mpi_advance.h>
 #endif
 
 template<class Device> struct Cells;
@@ -67,42 +72,114 @@ struct MeshData{
    * appropriately. */
   std::vector<int> mpiSendCounts, mpiSendOffsets;
   std::vector<int> mpiRecvCounts, mpiRecvOffsets;
+
   MPI_Comm comm_;
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+  MPIX_Comm xcomm_;
 #endif
 
-void communicate_ghosted_cell_data(double *send_data, double *recv_data, int data_per_cell)
+#endif // WITH_MPI
+
+void compute_mpi_collective_states(int data_per_cell,
+  std::vector<int> &scaled_send_counts, std::vector<int> &scaled_send_offsets, 
+  std::vector<int> &scaled_recv_counts, std::vector<int> &scaled_recv_offsets)
 {
-#ifdef WITH_MPI
-  int num_procs, my_id;
-  MPI_Comm_size(comm_, &num_procs);
-  MPI_Comm_rank(comm_, &my_id);
-
-  std::vector<int> scaled_send_offsets, scaled_send_counts,
-      scaled_recv_offsets, scaled_recv_counts;
-
-  if (data_per_cell == 1) {
-    scaled_send_offsets = mpiSendOffsets;
-    scaled_send_counts = mpiSendCounts;
-    scaled_recv_offsets = mpiRecvOffsets;
-    scaled_recv_counts = mpiRecvCounts;
-  } else {
     for (int i = 0; i < mpiSendOffsets.size(); i++) {
       scaled_send_offsets.push_back(mpiSendOffsets[i] * data_per_cell);
       scaled_send_counts.push_back(mpiSendCounts[i] * data_per_cell);
       scaled_recv_offsets.push_back(mpiRecvOffsets[i] * data_per_cell);
       scaled_recv_counts.push_back(mpiRecvCounts[i] * data_per_cell);
     }
-  } 
+}
+
+#define assertm(exp, msg) assert(((void)msg, exp))
+
+void communicate_ghosted_cell_data(MPI_Request &req) 
+{
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+  MPI_Status stat;
+  // All we do is start the neighbor collective then wait for it.
+  MPI_Start(&req);
+  MPI_Wait(&req, &stat);
+#else
+  assertm( false, "Locality Aware MPI is not enabled!");
+#endif
+}
+
+void communicate_ghosted_cell_data(double *send_data, double *recv_data, int data_per_cell)
+{
+#if WITH_MPI
+  int num_procs, my_id;
+  MPI_Comm_size(comm_, &num_procs);
+  MPI_Comm_rank(comm_, &my_id);
+
+#ifdef ENABLE_NEIGHBOR_COMMUNICATION
+  std::vector<int> scaled_send_offsets, scaled_send_counts,
+      scaled_recv_offsets, scaled_recv_counts;
+  compute_mpi_collective_states(data_per_cell,  
+                                scaled_send_counts, scaled_send_offsets, 
+                                scaled_recv_counts, scaled_recv_offsets);
 
   MPI_Neighbor_alltoallv(send_data, scaled_send_counts.data(), 
                          scaled_send_offsets.data(), MPI_DOUBLE,
                          recv_data, scaled_recv_counts.data(),
                          scaled_recv_offsets.data(), MPI_DOUBLE,
                          comm_);
-   
-#endif
+#else  // !NEIGHBOR_COMMUNICATION
+
+// communicate values to other processors
+  MPI_Request * requests = new MPI_Request[2*(num_procs-1)];
+  MPI_Status * statuses = new MPI_Status[2*(num_procs-1)];
+  int comm_count=0;
+  int tag=35;
+  int send_offset=0;
+  int recv_offset=0;
+  /* Post receives, then sends. */
+  for(int i=0; i<num_procs; ++i){
+    if(i==my_id) continue;
+    if(recvCount[i]!=0){
+      int data_length = recvCount[i]*data_per_cell;
+      MPI_Irecv(recv_data + recv_offset, data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
+      recv_offset+=data_length;
+      comm_count++;
+    }
+  }
+  for(int i=0; i<num_procs; ++i){
+    if(i==my_id) continue;
+    if(sendCount[i]!=0){
+      int data_length = sendCount[i]*data_per_cell;
+      MPI_Isend(send_data + send_offset, data_length, MPI_DOUBLE, i, tag, MPI_COMM_WORLD, &requests[comm_count]);
+      send_offset+=data_length;
+      comm_count++;
+    }
+  }
+  MPI_Waitall(comm_count, requests, statuses);
+
+  delete [] requests;
+  delete [] statuses;
+#endif // !LOCALITY_AWARE
+
+#endif // MPI
 }
 
+void init_communication_request(double *send_data, double *recv_data, int data_per_cell, MPI_Request &req)
+{
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+  std::vector<int> scaled_send_offsets, scaled_send_counts,
+      scaled_recv_offsets, scaled_recv_counts;
+  compute_mpi_collective_states(data_per_cell,  
+                                scaled_send_counts, scaled_send_offsets, 
+                                scaled_recv_counts, scaled_recv_offsets);
+
+  MPIX_Neighbor_alltoallv_init(send_data, scaled_send_counts.data(), 
+                              scaled_send_offsets.data(), MPI_DOUBLE,
+                              recv_data, scaled_recv_counts.data(),
+                              scaled_recv_offsets.data(), MPI_DOUBLE,
+                              xcomm_, &req);
+#else // ENABLE_LOCALITY_AWARE_MPI
+  assertm( false, "Locality Aware MPI is not enabled!");
+#endif
+}
 
 // Now that Parallel3DMesh has filled in our communication partners and offsets, we 
 // setup the actual communication scheme to talk with them. This could involve
@@ -141,7 +218,7 @@ void setup_communication_plan()
                                    sendProcs.size(), sendProcs.data(), mpiSendCounts.data(),
                                    MPI_INFO_NULL, 1,
                                    &comm_);
-#endif
+#endif // MPI
 } 
 
 };

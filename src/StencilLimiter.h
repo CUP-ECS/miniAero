@@ -526,8 +526,15 @@ class StencilLimiter{
       stored_max_("stored_max", cells->ncells_*5, cells->nfaces_),
       stored_limiter_("stored_limiter", cells->ncells_*5, cells->nfaces_),
       stencil_min_("stencil_min", cells->ncells_*5),
-      stencil_max_("stencil_max", cells->ncells_*5)
-        {}
+      stencil_max_("stencil_max", cells->ncells_*5) {
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+#ifdef WITH_GPUAWARE_MPI
+    mesh_data_->init_communication_request(shared_vars.data(),ghosted_vars.data(), 5);
+#else
+    mesh_data_->init_communication_request(shared_vars_host.data(),ghosted_vars_host.data(), 5);
+#endif
+#endif
+  }
 
   void compute_min_max(solution_field_type sol_np1_vec) {
 
@@ -560,7 +567,7 @@ class StencilLimiter{
 
   void communicate_min_max(){
       Kokkos::Tools::pushRegion("StencilLimiter::communicate_min_max");
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::pushRegion("packGhosts");
 #endif
 
@@ -574,18 +581,22 @@ class StencilLimiter{
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
 
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+      mesh_data_->communicate_ghosted_cell_data(req_);
+#else // !ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
       mesh_data_->communicate_ghosted_cell_data(shared_vars.data(),ghosted_vars.data(), 5);
 #else
       mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
+#endif // !ENABLE_LOCALITY_AWARE_MPI
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
 #endif
@@ -596,7 +607,7 @@ class StencilLimiter{
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::min::unpackGhosts");
       Kokkos::Tools::pushRegion("packGhosts");
 #endif
@@ -608,18 +619,22 @@ class StencilLimiter{
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
 
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+      mesh_data_->communicate_ghosted_cell_data(req_);
+#else // !ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
       mesh_data_->communicate_ghosted_cell_data(shared_vars.data(),ghosted_vars.data(), 5);
 #else
       mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
+#endif // !ENABLE_LOCALITY_AWARE_MPI
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
 #endif
@@ -630,7 +645,7 @@ class StencilLimiter{
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
       Kokkos::fence();
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max::max::unpackGhosts");
 #endif
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_min_max");
@@ -667,7 +682,7 @@ class StencilLimiter{
   void communicate_limiter(solution_field_type limiter) {
 
       Kokkos::Tools::pushRegion("StencilLimiter::communicate_limiter");
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::pushRegion("packGhosts");
 #endif
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
@@ -678,18 +693,22 @@ class StencilLimiter{
 #else
       Kokkos::deep_copy(shared_vars_host, shared_vars);
 #endif
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::packGhosts");
       Kokkos::Tools::pushRegion("exchangeGhosts");
 #endif
 
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+      mesh_data_->communicate_ghosted_cell_data(req_);
+#else // !ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
-      mesh_data_->communicate_ghosted_cell_data(shared_vars.data(), ghosted_vars.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars.data(),ghosted_vars.data(), 5);
 #else
-      mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(), ghosted_vars_host.data(), 5);
+      mesh_data_->communicate_ghosted_cell_data(shared_vars_host.data(),ghosted_vars_host.data(), 5);
 #endif
+#endif // !ENABLE_LOCALITY_AWARE_MPI
 
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::exchangeGhosts");
       Kokkos::Tools::pushRegion("unpackGhosts");
 #endif
@@ -699,7 +718,7 @@ class StencilLimiter{
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
       Kokkos::fence();
-#ifdef Miniaero_PROFILE_COMMUNICATION
+#ifdef PROFILE_COMMUNICATION
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter::unpackGhosts");
 #endif
       Kokkos::Tools::popRegion(); // ("StencilLimiter::communicate_limiter");
@@ -719,6 +738,9 @@ class StencilLimiter{
     cell_storage_field_type stored_limiter_;
     solution_field_type stencil_min_;
     solution_field_type stencil_max_;
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+    MPI_Request req_;
+#endif
 };
 
 #endif

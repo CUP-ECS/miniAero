@@ -425,6 +425,9 @@ public:
 
     Kokkos::Tools::popRegion(); //"fillMeshData::communicateGhosts::packGhosts"
     Kokkos::Tools::pushRegion("exchangeGhosts");
+
+// We don't bother with locality aware MPU here asthisis only run once,
+// and it could be annoying to do becuase of how initialization order works
 #ifdef WITH_GPUAWARE_MPI
     mesh_data.communicate_ghosted_cell_data(shared_volumes.data(),ghost_volumes.data(), 1);
 #else

@@ -49,11 +49,20 @@ set(SOURCES
 
 if (Miniaero_ENABLE_MPI)
   add_compile_options(-DWITH_MPI=1)
+
   if (Miniaero_ENABLE_GPUAWARE_MPI)
     add_compile_options(-DWITH_GPUAWARE_MPI=1)
   endif(Miniaero_ENABLE_GPUAWARE_MPI)
+
+  if (Miniaero_ENABLE_NEIGHBOR_COLLECTIVES)
+    add_compile_options(-DENABLE_NEIGHBOR_COLLECTIVES)
+    if (Miniaero_ENABLE_LOCALITY_AWARE_MPI)
+      add_compile_options(-DENABLE_LOCALITY_AWARE_MPI)
+    endif(Miniaero_ENABLE_LOCALITY_AWARE_MPI)
+  endif(Miniaero_ENABLE_NEIGHBOR_COLLECTIVES)
+
   if (Miniaero_PROFILE_COMMUNICATION)
-    add_compile_options(-DMiniaero_PROFILE_COMMUNICATION)
+    add_compile_options(-DPROFILE_COMMUNICATION)
   endif(Miniaero_PROFILE_COMMUNICATION)
 endif(Miniaero_ENABLE_MPI)
 
@@ -67,8 +76,15 @@ target_link_libraries(miniAero
   Kokkos::kokkos
   MPI::MPI_C)
 
+# Add any libraries needed to use MPI advance
+if(Miniaero_ENABLE_LOCALITY_AWARE_MPI)
+  target_link_libraries(miniAero mpi_advance)
+endif(Miniaero_ENABLE_LOCALITY_AWARE_MPI)
+
 target_include_directories(miniAero
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
   )
+
+

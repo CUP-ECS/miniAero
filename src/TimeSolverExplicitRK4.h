@@ -301,7 +301,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
 
 
 #ifdef ENABLE_LOCALITY_AWARE_MPI
-     MPI_Request req;
+     MPIX_Request *req;
 #ifdef WITH_GPUAWARE_MPI
      mesh_data_.init_communication_request(shared_conserved_vars.data(),ghosted_conserved_vars.data(), 5, req);
 #else

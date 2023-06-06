@@ -79,6 +79,7 @@ target_link_libraries(miniAero
 # Add any libraries needed to use MPI advance
 if(Miniaero_ENABLE_LOCALITY_AWARE_MPI)
   target_link_libraries(miniAero mpi_advance)
+  target_include_directories(miniAero PUBLIC "../thirdparty/locality_aware/src")
 endif(Miniaero_ENABLE_LOCALITY_AWARE_MPI)
 
 target_include_directories(miniAero

@@ -529,9 +529,9 @@ class StencilLimiter{
       stencil_max_("stencil_max", cells->ncells_*5) {
 #ifdef ENABLE_LOCALITY_AWARE_MPI
 #ifdef WITH_GPUAWARE_MPI
-    mesh_data_->init_communication_request(shared_vars.data(),ghosted_vars.data(), 5);
+    mesh_data_->init_communication_request(shared_vars.data(),ghosted_vars.data(), 5, req_);
 #else
-    mesh_data_->init_communication_request(shared_vars_host.data(),ghosted_vars_host.data(), 5);
+    mesh_data_->init_communication_request(shared_vars_host.data(),ghosted_vars_host.data(), 5, req_);
 #endif
 #endif
   }
@@ -739,7 +739,7 @@ class StencilLimiter{
     solution_field_type stencil_min_;
     solution_field_type stencil_max_;
 #ifdef ENABLE_LOCALITY_AWARE_MPI
-    MPI_Request req_;
+    MPIX_Request *req_;
 #endif
 };
 

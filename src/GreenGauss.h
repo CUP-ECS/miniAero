@@ -388,6 +388,6 @@ class GreenGauss {
     scalar_field_type shared_gradient_vars;
     typename scalar_field_type::HostMirror shared_gradient_vars_host;
 #ifdef ENABLE_LOCALITY_AWARE_MPI
-    MPI_Request req_;
+    MPIX_Request *req_;
 #endif
 };

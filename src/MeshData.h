@@ -75,7 +75,7 @@ struct MeshData{
 
   MPI_Comm comm_;
 #ifdef ENABLE_LOCALITY_AWARE_MPI
-  MPIX_Comm xcomm_;
+  MPIX_Comm *xcomm_;
 #endif
 
 #endif // WITH_MPI
@@ -84,27 +84,39 @@ void compute_mpi_collective_states(int data_per_cell,
   std::vector<int> &scaled_send_counts, std::vector<int> &scaled_send_offsets, 
   std::vector<int> &scaled_recv_counts, std::vector<int> &scaled_recv_offsets)
 {
+    int rank, last;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     for (int i = 0; i < mpiSendOffsets.size(); i++) {
       scaled_send_offsets.push_back(mpiSendOffsets[i] * data_per_cell);
       scaled_send_counts.push_back(mpiSendCounts[i] * data_per_cell);
+    }
+    // We add an extra offset at the end to sentinel the offsets to
+    // work around an old bug in the locality_aware code.
+    last = mpiSendOffsets.size() - 1;
+    scaled_send_offsets.push_back(mpiSendOffsets[last] * data_per_cell + mpiSendCounts[last]*data_per_cell);
+
+    for (int i = 0; i < mpiRecvOffsets.size(); i++) {
       scaled_recv_offsets.push_back(mpiRecvOffsets[i] * data_per_cell);
       scaled_recv_counts.push_back(mpiRecvCounts[i] * data_per_cell);
     }
+    // We add an extra offset at the end to sentinel the offsets to
+    // work around an old bug in the locality_aware code.
+    last = mpiRecvOffsets.size() - 1;
+    scaled_recv_offsets.push_back(mpiRecvOffsets[last] * data_per_cell + mpiRecvCounts[last]*data_per_cell);
 }
 
 #define assertm(exp, msg) assert(((void)msg, exp))
 
-void communicate_ghosted_cell_data(MPI_Request &req) 
-{
 #ifdef ENABLE_LOCALITY_AWARE_MPI
+void communicate_ghosted_cell_data(MPIX_Request * &req) 
+{
   MPI_Status stat;
   // All we do is start the neighbor collective then wait for it.
-  MPI_Start(&req);
-  MPI_Wait(&req, &stat);
-#else
-  assertm( false, "Locality Aware MPI is not enabled!");
-#endif
+  MPIX_Start(req);
+  MPIX_Wait(req, &stat);
 }
+
+#endif
 
 void communicate_ghosted_cell_data(double *send_data, double *recv_data, int data_per_cell)
 {
@@ -162,9 +174,9 @@ void communicate_ghosted_cell_data(double *send_data, double *recv_data, int dat
 #endif // MPI
 }
 
-void init_communication_request(double *send_data, double *recv_data, int data_per_cell, MPI_Request &req)
-{
 #ifdef ENABLE_LOCALITY_AWARE_MPI
+void init_communication_request(double *send_data, double *recv_data, int data_per_cell, MPIX_Request * &req)
+{
   std::vector<int> scaled_send_offsets, scaled_send_counts,
       scaled_recv_offsets, scaled_recv_counts;
   compute_mpi_collective_states(data_per_cell,  
@@ -174,12 +186,10 @@ void init_communication_request(double *send_data, double *recv_data, int data_p
   MPIX_Neighbor_alltoallv_init(send_data, scaled_send_counts.data(), 
                               scaled_send_offsets.data(), MPI_DOUBLE,
                               recv_data, scaled_recv_counts.data(),
-                              scaled_recv_offsets.data(), MPI_DOUBLE,
-                              xcomm_, &req);
-#else // ENABLE_LOCALITY_AWARE_MPI
-  assertm( false, "Locality Aware MPI is not enabled!");
-#endif
+                              scaled_recv_offsets.data(), MPI_DOUBLE, 
+                              xcomm_, MPI_INFO_NULL, &req);
 }
+#endif
 
 // Now that Parallel3DMesh has filled in our communication partners and offsets, we 
 // setup the actual communication scheme to talk with them. This could involve
@@ -218,6 +228,18 @@ void setup_communication_plan()
                                    sendProcs.size(), sendProcs.data(), mpiSendCounts.data(),
                                    MPI_INFO_NULL, 1,
                                    &comm_);
+
+#ifdef ENABLE_LOCALITY_AWARE_MPI
+    // Create an mpix locality-aware distributed graph communicator for use 
+    // in a neighbor collective 
+    MPIX_Dist_graph_create_adjacent(MPI_COMM_WORLD, 
+                                   recvProcs.size(), recvProcs.data(), mpiRecvCounts.data(),
+                                   sendProcs.size(), sendProcs.data(), mpiSendCounts.data(),
+                                   MPI_INFO_NULL, 1,
+                                   &xcomm_);
+
+#endif
+
 #endif // MPI
 } 
 

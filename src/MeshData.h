@@ -183,7 +183,8 @@ void init_communication_request(double *send_data, double *recv_data, int data_p
                                 scaled_send_counts, scaled_send_offsets, 
                                 scaled_recv_counts, scaled_recv_offsets);
 
-  MPIX_Neighbor_part_locality_alltoallv_init(send_data, scaled_send_counts.data(), 
+  //MPIX_Neighbor_part_locality_alltoallv_init(send_data, scaled_send_counts.data(), 
+  MPIX_Neighbor_alltoallv_init(send_data, scaled_send_counts.data(), 
                               scaled_send_offsets.data(), MPI_DOUBLE,
                               recv_data, scaled_recv_counts.data(),
                               scaled_recv_offsets.data(), MPI_DOUBLE, 
